@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini Replit</title>
+    <style>
+        body { margin:0; font-family:sans-serif; background:#1e1e1e; color:white; display:flex; flex-direction:column; height:100vh; }
+        #toolbar { padding:10px; background:#2c3e50; display:flex; gap:8px; }
+        button, select { padding:8px 12px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; }
+        #editor { flex:1; margin:0; }
+        #output { min-height:80px; background:#2d2d2d; padding:10px; overflow:auto; font-family:monospace; }
+        .error { color:#ff6b6b; }
+        .success { color:#2ecc71; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.35.2/ace.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.35.2/ext-language_tools.min.js"></script>
+</head>
+<body>
+    <div id="toolbar">
+        <select id="language-select">
+            <option value="python">Python</option>
+            <option value="html">HTML/CSS/JS</option>
+        </select>
+        <button onclick="runCode()">Exécuter</button>
+        <button onclick="clearCode()">Effacer</button>
+    </div>
+    <div id="editor"></div>
+    <div id="output">Écris ton code ici...</div>
+
+    <script>
+        const editor = ace.edit("editor");
+        editor.setTheme("ace/theme/monokai");
+        editor.session.setMode("ace/mode/python");
+        editor.setOptions({
+            enableBasicAutocompletion:true,
+            enableLiveAutocompletion:true,
+            enableSnippets:true,
+            showPrintMargin:false
+        });
+
+        function runCode() {
+            const code = editor.getValue();
+            const lang = document.getElementById("language-select").value;
+            if(lang === "python") {
+                // Affichage simple pour iPhone, car Pyodide est lourd
+                alert("Exécution Python non supportée sur iPhone directement.");
+            } else {
+                try {
+                    const iframe = document.createElement("iframe");
+                    iframe.style.width="100%";
+                    iframe.style.height="200px";
+                    document.getElementById("output").innerHTML="";
+                    document.getElementById("output").appendChild(iframe);
+                    iframe.contentWindow.document.open();
+                    iframe.contentWindow.document.write(code);
+                    iframe.contentWindow.document.close();
+                } catch(err) {
+                    document.getElementById("output").innerHTML = "<span class='error'>Erreur: "+err+"</span>";
+                }
+            }
+        }
+
+        function clearCode() {
+            editor.setValue("");
+        }
+
+        // Change mode selon la sélection
+        document.getElementById("language-select").addEventListener("change", (e)=>{
+            if(e.target.value === "python") editor.session.setMode("ace/mode/python");
+            else editor.session.setMode("ace/mode/javascript");
+        });
+    </script>
+</body>
+</html>
