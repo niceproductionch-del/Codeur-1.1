@@ -372,7 +372,11 @@
             initialCapital: 10000,
             updateInterval: 1000, // Mise à jour toutes les secondes
             priceVolatility: 0.02,
-            basePriceStart: 100
+            basePriceStart: 100,
+            priceHistoryLimit: 200,
+            tradeAmountPercent: 0.1, // 10% du capital par trade
+            rsiOverbought: 70,
+            rsiOversold: 30
         };
 
         // État du système
@@ -385,7 +389,9 @@
             trades: [],
             winningTrades: 0,
             losingTrades: 0,
-            updateTimer: null
+            updateTimer: null,
+            lastBuyTrade: null,
+            historyEmpty: true
         };
 
         // Initialisation
@@ -408,15 +414,15 @@
             state.currentPrice += change;
             state.priceHistory.push(state.currentPrice);
             
-            // Garder seulement les 200 derniers prix
-            if (state.priceHistory.length > 200) {
+            // Garder seulement les derniers prix
+            if (state.priceHistory.length > config.priceHistoryLimit) {
                 state.priceHistory.shift();
             }
         }
 
         // Calcul du RSI (Relative Strength Index)
         function calculateRSI(prices, period = 14) {
-            if (prices.length < period + 1) return 50;
+            if (prices.length < period + 1) return null;
             
             let gains = 0;
             let losses = 0;
@@ -484,11 +490,11 @@
             
             // Stratégie basée sur RSI
             if (strategy === 'rsi' || strategy === 'combined') {
-                if (rsi < 30) {
+                if (rsi !== null && rsi < config.rsiOversold) {
                     confidence += aggressiveness === 'aggressive' ? 40 : 
                                  aggressiveness === 'moderate' ? 30 : 20;
                     signal = 'BUY';
-                } else if (rsi > 70) {
+                } else if (rsi !== null && rsi > config.rsiOverbought) {
                     confidence += aggressiveness === 'aggressive' ? 40 : 
                                  aggressiveness === 'moderate' ? 30 : 20;
                     signal = 'SELL';
@@ -536,21 +542,24 @@
 
         // Exécution d'un trade
         function executeTrade(type) {
-            const amount = state.capital * 0.1; // 10% du capital par trade
+            const amount = state.capital * config.tradeAmountPercent;
             const price = state.currentPrice;
             
-            if (type === 'BUY' && state.capital >= amount) {
+            if (type === 'BUY' && state.capital >= amount && state.positions === 0) {
                 const shares = amount / price;
-                state.positions += shares;
+                state.positions = shares;
                 state.capital -= amount;
                 
-                addTradeToHistory({
+                const trade = {
                     type: 'BUY',
                     price: price,
                     amount: amount,
                     shares: shares,
                     timestamp: new Date()
-                });
+                };
+                
+                state.lastBuyTrade = trade;
+                addTradeToHistory(trade);
                 
             } else if (type === 'SELL' && state.positions > 0) {
                 const shares = state.positions;
@@ -558,14 +567,14 @@
                 state.capital += amount;
                 
                 // Calculer le profit/perte
-                const lastBuyTrade = [...state.trades].reverse().find(t => t.type === 'BUY');
-                if (lastBuyTrade) {
-                    const profitLoss = amount - (lastBuyTrade.shares * lastBuyTrade.price);
+                if (state.lastBuyTrade) {
+                    const profitLoss = amount - state.lastBuyTrade.amount;
                     if (profitLoss > 0) state.winningTrades++;
                     else state.losingTrades++;
                 }
                 
                 state.positions = 0;
+                state.lastBuyTrade = null;
                 
                 addTradeToHistory({
                     type: 'SELL',
@@ -599,8 +608,9 @@
                 </div>
             `;
             
-            if (historyDiv.innerHTML.includes('Aucune transaction')) {
+            if (state.historyEmpty) {
                 historyDiv.innerHTML = '';
+                state.historyEmpty = false;
             }
             
             historyDiv.insertBefore(tradeItem, historyDiv.firstChild);
@@ -636,9 +646,11 @@
             
             // Indicateurs
             const analysis = analyzeMarket();
-            document.getElementById('rsiValue').textContent = analysis.rsi.toFixed(2);
-            document.getElementById('rsiValue').style.color = analysis.rsi < 30 ? '#4CAF50' : 
-                                                             analysis.rsi > 70 ? '#f44336' : '#FFF';
+            document.getElementById('rsiValue').textContent = analysis.rsi !== null ? analysis.rsi.toFixed(2) : '--';
+            if (analysis.rsi !== null) {
+                document.getElementById('rsiValue').style.color = analysis.rsi < config.rsiOversold ? '#4CAF50' : 
+                                                                 analysis.rsi > config.rsiOverbought ? '#f44336' : '#FFF';
+            }
             document.getElementById('maValue').textContent = `$${analysis.ma20.toFixed(2)}`;
             document.getElementById('macdValue').textContent = analysis.macd.toFixed(2);
             document.getElementById('macdValue').style.color = analysis.macd > 0 ? '#4CAF50' : '#f44336';
